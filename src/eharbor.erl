@@ -1,8 +1,71 @@
-%%%-------------------------------------------------------------------
-%% @doc eharbor
-%% @end
-%%%-------------------------------------------------------------------
-
+%% @author Eric des Courtis <eric.descourtis@fireworkhq.com>
+%% @doc eharbor is an Erlang library that allows for running a
+%% function in a controlled manner, with the ability to deduplicate
+%% function calls with the same arguments. It features configurable
+%% deduplication, ordered function calls, and buffering to prevent
+%% system overload. This library is useful for running expensive tasks,
+%% where deduplication of the same inputs can lead to significant
+%% performance gains.
+%%
+%% The config type is a map with the following keys:
+%%
+%% `name' (default: `default') The name of the harbor instance. This name is used to derive
+%%        a coordinator name and a pobox name.
+%%
+%% `backlog' (default: `1000') How big should our pobox buffer be? This is
+%%           effectively going to determine how much memory the pobox will
+%%           be allowed to consume. The underlying pobox acts as our load
+%%           shedding for overload scenarios. Don't set this parameter to
+%%           an arbitrary value instead try to calculate how much memory will
+%%           use when the pobox will be full to make sure that the system
+%%           will survive.
+%%
+%% `piers' (default: `100') How many unique parameters to process at once. This
+%%         effectively limits concurrency on the backend. It can be used as a
+%%         bulkhead by providing a limit that is smaller than connection pool
+%%         size for a database like Postgres for example.
+%%
+%% `breakwater_limit' (default: `2000') Maximum number of processes waiting
+%%                    on a result being processed by the backend. This does
+%%                    not include the `backlog' processes. Keep in mind this
+%%                    value should not be to large otherwise memory spikes
+%%                    could occur during fanout of the results from conductor
+%%                    to follower.
+%%
+%% `dedup' (default: `true') Is this instance being used as a simple bulkhead
+%%         or are we tring to accelerate the requests by deduplicating them.
+%%
+%% `ordered' (default: `true') For a sequential process P where no other sequential
+%%           process writes. If the process reads and then writes when this parameter
+%%           is set to false the write may appear to have occured before the read.
+%%           This results in lower latency and lower overhead at the cost of ordering.
+%%           The parameter is set to true by default since it that behavior is
+%%           more intuitive. But if maximum performance is desired set it to false.
+%%
+%% `group_by_key_fun' (default: `fun(Key) -> Key end') Sometimes some parameters need
+%%                    to be passed into harbor but shouldn't be considered for
+%%                    pier assignment or deduplication. This allows you to ignore
+%%                    some parameters while still passing them into your function.
+%%
+%% `error_type' (default: `value') How to handle scenarios where the pobox is full
+%%              what type of error to return (should be one of these `throw | error | raise | exit | value').
+%%
+%% `error_value' (default: `{error, full}') The value of the throw error, exit etc.
+%%               In this case we return a value because the default is `value'.
+%%
+%% `buffer_insert_timeout' (default: `5000') How long to wait for insertion into the
+%%                         pobox buffer normally changing this should not be required.
+%%
+%% `follower_wait_for_conductor_timeout' (default: `infinity') How long the follower should
+%%                                       wait after the conductor. Normally you shouldn't
+%%                                       have to modify this value since crashes are detected
+%%                                       and will not cause followers to wait until timeout.
+%%
+%% `conductor_wait_for_coordinator_followers_timeout' (default: `infinity') Don't touch unless
+%%                                                    you know exactly what you are doing.
+%% `assign_role_timeout' (default: `infinity') Don't touch unless you know exactly what you
+%%                       are doing.
+%%
 -module(eharbor).
 
 -export([run/2, run/3, config_defaults/0, merge_with_defaults/1, pobox_name/1,
@@ -54,9 +117,32 @@
           conductor_wait_for_coordinator_followers_timeout => infinity,
           assign_role_timeout => infinity}).
 
+%% @doc start_link the harbor instance using a configuration
+%%
+%% @end
+-spec start_link(Config :: config()) -> {ok, Pid :: pid()} | ignore | {error, Reason :: term()}.
+start_link(Config) ->
+    eharbor_coordinator:start_link(Config).
+
+%% @doc Return the configuration defaults for harbor.
+%%
+%% `config_defaults/2' returns the default configuration parameters.
+%% This is later used to convert an `incomplete_config()' into a
+%% `config()'.
+%%
+%% @see merge_with_defaults/1
+%% @end
+-spec config_defaults() -> config().
 config_defaults() ->
     ?CONFIG_DEFAULTS.
 
+%% @doc Merge an incomplete configuration with the defaults to produce a proper config.
+%%
+%% `merge_with_defaults/2' returns overridden parameters merged with the default
+%%  configuration parameters when the paramter is missing.
+%%
+%% @see config_defaults/0
+%% @end
 -spec merge_with_defaults(incomplete_config()) -> config().
 merge_with_defaults(Map) when is_map(Map) ->
     maps:merge_with(fun(_Key, Value1, Value2) ->
@@ -70,6 +156,10 @@ merge_with_defaults(Map) when is_map(Map) ->
                     eharbor:config_defaults(),
                     Map).
 
+%% @doc Run a function using a function reference and arguments with the
+%%      config using a harbor instance.
+%%
+%% @end
 -spec run(fun((any()) -> any()), [any()], config()) -> any() | no_return().
 run(Function, Arguments, Config = #{ordered := Ordered}) ->
     do_run(Function, Arguments, Config, Ordered).
@@ -217,13 +307,30 @@ do_run(Function,
             end
     end.
 
--spec run(mfa(), config()) -> any() | no_return().
+%% @doc Run a function using an MFA with the config using a harbor instance.
+%%
+%% @end
+-spec run(MFA :: mfa(), Config :: config()) -> any() | no_return().
 run({Module, Function, Arguments}, Config) ->
     F = fun(Args) -> erlang:apply(Module, Function, Args) end,
     run(F, Arguments, Config).
 
+%% @doc From the harbor name return the derived pobox name.
+%%
+%% The pobox is a named process and to talk to it directly
+%% some operations require its name.
+%%
+%% @end
+-spec pobox_name(Name :: atom()) -> atom().
 pobox_name(Name) ->
     erlang:binary_to_atom(<<(erlang:atom_to_binary(Name))/binary, "_pobox">>).
 
+%% @doc From the harbor name return the derived coordinator name.
+%%
+%% The coordinator is a named process and to talk to it directly
+%% some operations require its name.
+%%
+%% @end
+-spec coordinator_name(Name :: atom()) -> atom().
 coordinator_name(Name) ->
     erlang:binary_to_atom(<<(erlang:atom_to_binary(Name))/binary, "_coordinator">>).
