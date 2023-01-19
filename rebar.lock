@@ -1,0 +1,8 @@
+{"1.2.0",
+[{<<"pobox">>,{pkg,<<"pobox">>,<<"1.2.0">>},0}]}.
+[
+{pkg_hash,[
+ {<<"pobox">>, <<"3127CB48F13D18EFEC7A9EA2622077F4F9C5F067CC1182AF1977DACD7A74FDB8">>}]},
+{pkg_hash_ext,[
+ {<<"pobox">>, <<"25D6FCDBE4FEDBBF4BCAA459FADEE006E75BB3281D4E6C9B2DC0EE93C51920C4">>}]}
+].

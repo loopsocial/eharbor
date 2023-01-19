@@ -1,0 +1,12 @@
+{application,
+ eharbor,
+ [{description,
+   "Harbor is a library that helps systems handle overload by providing a buffer and limits. It also has a request deduplication mechanism and can serve as a better alternative to a circuit breaker. It is appropriate to use Harbor if the system is likely to experience overload, if the system is doing a lot of identical read operations, or if the concurrency of an operation needs to be limited. Harbor works by using a buffer to prevent the system from using too much memory and crashing when overloaded. It can also aggregate identical requests to reduce the load on the system. In cases where random request shedding is not desirable, Harbor can be used to shed by endpoint instead. It can also be used in place of a circuit breaker to prevent intermittent pauses and spikes in accumulation."},
+  {vsn, "1.0.0"},
+  {registered, []},
+  {mod, {eharbor_app, []}},
+  {applications, [kernel, stdlib]},
+  {env, []},
+  {modules, []},
+  {licenses, ["Apache-2.0"]},
+  {links, []}]}.
