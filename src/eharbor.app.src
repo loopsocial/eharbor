@@ -8,5 +8,6 @@
   {applications, [kernel, stdlib]},
   {env, []},
   {modules, []},
-  {licenses, ["Apache-2.0"]},
-  {links, []}]}.
+  {maintainers, ["Eric des Courtis"]},
+  {licenses, ["Apache 2.0"]},
+  {links, [{"Github", "https://github.com/loopsocial/eharbor/"}]}.
