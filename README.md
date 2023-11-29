@@ -76,7 +76,7 @@ Result = eharbor:run(fun some_mod:slow_function/1, [Param], Config).
 {ok, _Pid} = eharbor:start_link(Config).
 
 %% Run the function via eharbor
-Result = eharbor:run(fun some_mod:heavy_computation/1, [Arg], Config).
+Result = eharbor:run(fun some_mod:slow_function/1, [Arg], Config).
 ```
 
 ### Ignoring Parameters
